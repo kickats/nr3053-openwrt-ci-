@@ -83,4 +83,4 @@ jobs:
             --draft --prerelease \
             --title "NR3053 ${{ inputs.openwrt_tag }} EXTENDED #${{ github.run_number }}" \
             --notes "BẢN EXTENDED (kernel ABI khác bản A). Chưa boot-test. Chỉ dùng feed APK Pages của CHÍNH lượt build này (#${{ github.run_number }}); không dùng với firmware A hoặc feed lượt khác. Xác minh fingerprint khoá công khai trong README trước khi thêm vào /etc/apk/keys/. Kiểm tra sha256sums, sysupgrade -T, nạp qua LuCI (Keep settings), không dùng -F." \
-            out/*sysupgrade.bin out/sha256sums out/*.manifest
+            out/*sysupgrade.bin out/*initramfs-kernel.bin out/sha256sums out/*.manifest
