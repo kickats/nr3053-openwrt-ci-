@@ -1,5 +1,12 @@
 # OpenWrt NR3053: Standard / Extended
 
+Thấy em router này trên VOZ mà chưa có bản Openwrt public - Tạo bản này trong lúc rảnh rỗi cho mọi người nghịch
+
+Thư mục Backup có : Uboot để nạp lần đầu và các file backup phân vùng đề phòng trong trường hợp các bạn nghịch đứt tay
+
+Repo này có 2 lựa chọn build kèm kho kmod ngoài hoặc không cần . Mọi người có thể sửa seed để thêm hay chỉnh sửa gói mà mình thích
+
+OpenWrt nên Ram trống rất nhiều ~ 360M - Ổ cứng trống ~168M . Đã cài sẵn Wireguard , PBR , CloudFlare , SQM .....
 
 | Nhóm | Số gói |
 |---|---:|
