@@ -1,0 +1,8 @@
+/openwrt/
+/artifacts/
+/logs/
+/kmod-feed/
+/release/
+*.key
+*.sec
+*.private.pem
