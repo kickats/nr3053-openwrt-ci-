@@ -7,6 +7,10 @@ on:
         default: v25.12.6
         required: true
         type: string
+      publish_release:
+        description: Tạo draft prerelease
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -15,3 +19,29 @@ jobs:
     with:
       openwrt_tag: ${{ inputs.openwrt_tag }}
       build_kmod_feed: false
+
+  release:
+    needs: firmware
+    if: inputs.publish_release
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            -n "nr3053-${{ inputs.openwrt_tag }}-${{ github.run_number }}" -D out
+          ls -l out
+      - name: Create draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="fw-${{ inputs.openwrt_tag }}-${{ github.run_number }}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+            --draft --prerelease \
+            --title "NR3053 ${{ inputs.openwrt_tag }} #${{ github.run_number }}" \
+            --notes "Chưa boot-test trên phần cứng. Kiểm tra sha256sums, chạy sysupgrade -T, nạp qua LuCI (Keep settings), không dùng -F." \
+            out/*sysupgrade.bin out/sha256sums out/*.manifest
