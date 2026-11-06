@@ -1,0 +1,56 @@
+name: B - Extended firmware and signed Pages feed
+on:
+  workflow_dispatch:
+    inputs:
+      openwrt_tag:
+        description: Stable OpenWrt tag
+        default: v25.12.6
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: nr3053-pages
+  cancel-in-progress: false
+jobs:
+  firmware:
+    uses: ./.github/workflows/build-core.yml
+    with:
+      openwrt_tag: ${{ inputs.openwrt_tag }}
+      build_kmod_feed: true
+  prepare-pages:
+    needs: firmware
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nr3053-kmods-${{ github.run_id }}-${{ github.run_attempt }}
+          path: kmod-feed
+      - name: Check payload integrity and prepare isolated Pages site
+        env:
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python3 scripts/pages-feed.py kmod-feed --output pages --build-id "$BUILD_ID"
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: pages
+  deploy-pages:
+    needs: prepare-pages
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy signed feed
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

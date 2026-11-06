@@ -1,0 +1,218 @@
+name: NR3053 reusable build
+
+on:
+  workflow_call:
+    inputs:
+      openwrt_tag:
+        description: Stable OpenWrt tag (review overlay before changing)
+        required: true
+        type: string
+      build_kmod_feed:
+        description: Build optional NR3053 kmods and signed feed
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nr3053-${{ inputs.openwrt_tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    environment: ${{ inputs.build_kmod_feed && 'kmod-signing' || 'standard-build' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      OPENWRT_TAG: ${{ inputs.openwrt_tag }}
+      OPENWRT_SOURCE_DIR: ${{ github.workspace }}/openwrt
+      NR3053_NINJA_JOBS: "2"
+      CCACHE_MAXSIZE: 2G
+      BUILD_KMOD_FEED: ${{ inputs.build_kmod_feed }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout overlay repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare hosted runner and dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p logs
+          if [[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]; then
+            for sdk in /usr/share/dotnet /usr/local/lib/android /opt/ghc; do
+              if [[ -d "$sdk" ]]; then
+                sudo du -sh "$sdk"
+                sudo rm -rf -- "$sdk"
+              fi
+            done
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses-dev libssl-dev libelf-dev zlib1g-dev \
+            python3 python3-distutils python3-setuptools rsync swig unzip zip \
+            file wget curl ca-certificates patch diffutils time xsltproc ccache
+          df -h .
+          free -h
+          available=$(df -Pk . | awk 'NR == 2 {print $4}')
+          if (( available < 25 * 1024 * 1024 )); then
+            echo "Need at least 25 GiB free; select a larger runner." >&2
+            exit 1
+          fi
+
+      - name: Clone stable tag and apply port
+        run: |
+          set -euo pipefail
+          [[ "$OPENWRT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Use a stable release tag, e.g. v25.12.6" >&2
+            exit 1
+          }
+          git clone --depth 1 --branch "$OPENWRT_TAG" \
+            https://github.com/openwrt/openwrt.git openwrt
+          if [[ "$OPENWRT_TAG" == v25.12.6 ]]; then
+            test "$(git -C openwrt rev-parse HEAD)" = "$(cat overlay/upstream-commit.txt)"
+          fi
+          bash scripts/apply-overlay.sh "$OPENWRT_SOURCE_DIR"
+          mkdir -p openwrt/dl openwrt/.ccache
+
+      - name: Restore downloads
+        id: downloads
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: openwrt/dl
+          key: ${{ runner.os }}-nr3053-dl-${{ inputs.openwrt_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-nr3053-dl-${{ inputs.openwrt_tag }}-
+            ${{ runner.os }}-nr3053-dl-
+
+      - name: Restore compiler cache
+        id: compiler
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: openwrt/.ccache
+          key: ${{ runner.os }}-nr3053-ccache-${{ inputs.openwrt_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-nr3053-ccache-${{ inputs.openwrt_tag }}-
+
+      - name: Install pinned feeds and resolve configuration
+        run: |
+          set -euo pipefail
+          cd openwrt
+          ./scripts/feeds update -a 2>&1 | tee ../logs/feeds-update.log
+          ./scripts/feeds install -a 2>&1 | tee ../logs/feeds-install.log
+          cp ../nr3053.seed.config .config
+          if [[ "${BUILD_KMOD_FEED:-false}" == true ]]; then
+            cat ../nr3053.kmods.config >> .config
+          fi
+          make defconfig 2>&1 | tee ../logs/defconfig.log
+          options=()
+          if [[ "$BUILD_KMOD_FEED" == true ]]; then
+            options+=(--kmod-config ../nr3053.kmods.config)
+          fi
+          python3 ../scripts/verify.py . --config-only "${options[@]}"
+          cp .config ../logs/config.resolved
+
+      - name: Embed optional feed public key
+        if: inputs.build_kmod_feed
+        run: |
+          set -euo pipefail
+          mkdir -p openwrt/files/etc/apk/keys
+          cp keys/nr3053-kmods.pub openwrt/files/etc/apk/keys/nr3053-kmods.pub
+
+      - name: Download sources
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          make -C openwrt download -j8 2>&1 | tee logs/download.log
+
+      - name: Build firmware
+        timeout-minutes: 300
+        run: |
+          set -euo pipefail
+          chmod +x scripts/ninja.sh
+          jobs=$(nproc)
+          if (( jobs > 2 )); then jobs=2; fi
+          make -C openwrt -j"$jobs" \
+            NINJA="$GITHUB_WORKSPACE/scripts/ninja.sh" V=s 2>&1 | tee logs/compile.log
+
+      - name: Verify and collect safe artifacts
+        run: |
+          set -euo pipefail
+          options=()
+          if [[ "$BUILD_KMOD_FEED" == true ]]; then
+            options+=(--kmod-config nr3053.kmods.config)
+          fi
+          python3 scripts/verify.py openwrt --tag "$OPENWRT_TAG" --output artifacts "${options[@]}"
+
+      - name: Create signed kmod repository from the same build
+        if: inputs.build_kmod_feed
+        env:
+          KMOD_SIGNING_KEY: ${{ secrets.KMOD_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$KMOD_SIGNING_KEY" || {
+            echo "Set KMOD_SIGNING_KEY in the protected kmod-signing environment." >&2
+            exit 1
+          }
+          umask 077
+          key="$RUNNER_TEMP/nr3053-kmod-signing.key"
+          trap 'rm -f -- "$key"' EXIT
+          printf '%s\n' "$KMOD_SIGNING_KEY" > "$key"
+          unset KMOD_SIGNING_KEY
+          python3 scripts/kmod-feed.py openwrt --output kmod-feed \
+            --sign-key "$key" \
+            --public-key keys/nr3053-kmods.pub
+
+      - name: Upload signed kmod feed
+        if: inputs.build_kmod_feed && success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nr3053-kmods-${{ github.run_id }}-${{ github.run_attempt }}
+          path: kmod-feed/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove temporary private key
+        if: always() && inputs.build_kmod_feed
+        run: |
+          rm -f -- "$RUNNER_TEMP/nr3053-kmod-signing.key" "$RUNNER_TEMP/nr3053-kmod-signing.pub"
+
+      - name: Save downloads
+        if: always() && !cancelled() && steps.downloads.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: openwrt/dl
+          key: ${{ steps.downloads.outputs.cache-primary-key }}
+
+      - name: Save compiler cache
+        if: always() && !cancelled() && steps.compiler.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: openwrt/.ccache
+          key: ${{ steps.compiler.outputs.cache-primary-key }}
+
+      - name: Upload firmware
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nr3053-${{ inputs.openwrt_tag }}-${{ github.run_number }}
+          path: artifacts/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nr3053-logs-${{ github.run_number }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 7
