@@ -1,0 +1,8 @@
+A	files/etc/banner
+A	files/etc/uci-defaults/zz-nr3053-localization
+A	nr3053.seed.config
+A	target/linux/mediatek/dts/mt7981b-sdmc-nr3053.dts
+M	target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+M	target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
+M	target/linux/mediatek/image/filogic.mk
+A	target/linux/mediatek/patches-6.12/341-mtd-spinand-Support-dosilicon.patch

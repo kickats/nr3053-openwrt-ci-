@@ -1,0 +1,57 @@
+diff --git a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+index b60e306..499a901 100644
+--- a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
++++ b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+@@ -8,6 +8,10 @@ mediatek_setup_interfaces()
+ 	local board="$1"
+ 
+ 	case $board in
++	sdmc,nr3053|\
++	viettel,nr3053)
++		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3" wan
++		;;
+ 	abt,asr3000|\
+ 	buffalo,wsr-6000ax8|\
+ 	cmcc,rax3000m|\
+diff --git a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
+index f7cbd40..40e5e60 100644
+--- a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
++++ b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
+@@ -352,6 +352,11 @@ platform_check_image() {
+ 	[ "$#" -gt 1 ] && return 1
+ 
+ 	case "$board" in
++	sdmc,nr3053|\
++	viettel,nr3053)
++		nand_do_platform_check "sdmc,nr3053" "$1"
++		return $?
++		;;
+ 	abt,asr3000|\
+ 	acer,predator-w6x-ubootmod|\
+ 	asus,zenwifi-bt8-ubootmod|\
+diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
+index 1696036..93dfe06 100644
+--- a/target/linux/mediatek/image/filogic.mk
++++ b/target/linux/mediatek/image/filogic.mk
+@@ -3910,3 +3910,21 @@ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
+ endif
+ endef
+ TARGET_DEVICES += zyxel_wx5600-t0-ubootmod
++
++
++define Device/sdmc_nr3053
++  DEVICE_VENDOR := SDMC
++  DEVICE_MODEL := NR3053
++  DEVICE_DTS := mt7981b-sdmc-nr3053
++  DEVICE_DTS_DIR := ../dts
++  SUPPORTED_DEVICES := viettel,nr3053 sdmc,nr3053
++  UBINIZE_OPTS := -E 5
++  BLOCKSIZE := 128k
++  PAGESIZE := 2048
++  IMAGE_SIZE := 239616k
++  IMAGES += factory.bin
++  IMAGE/factory.bin := append-ubi | check-size
++  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
++  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
++endef
++TARGET_DEVICES += sdmc_nr3053
