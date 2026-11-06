@@ -7,6 +7,10 @@ on:
         default: v25.12.6
         required: true
         type: string
+      publish_release:
+        description: Tạo draft prerelease
+        default: false
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -54,3 +58,29 @@ jobs:
       - name: Deploy signed feed
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+  release:
+    needs: deploy-pages
+    if: inputs.publish_release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download firmware artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            -n "nr3053-${{ inputs.openwrt_tag }}-${{ github.run_number }}" -D out
+          ls -l out
+      - name: Create draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="fw-ext-${{ inputs.openwrt_tag }}-${{ github.run_number }}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+            --draft --prerelease \
+            --title "NR3053 ${{ inputs.openwrt_tag }} EXTENDED #${{ github.run_number }}" \
+            --notes "BẢN EXTENDED (kernel ABI khác bản A). Chưa boot-test. Chỉ dùng feed APK Pages của CHÍNH lượt build này (#${{ github.run_number }}); không dùng với firmware A hoặc feed lượt khác. Xác minh fingerprint khoá công khai trong README trước khi thêm vào /etc/apk/keys/. Kiểm tra sha256sums, sysupgrade -T, nạp qua LuCI (Keep settings), không dùng -F." \
+            out/*sysupgrade.bin out/sha256sums out/*.manifest
