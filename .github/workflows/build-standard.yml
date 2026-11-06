@@ -44,4 +44,4 @@ jobs:
             --draft --prerelease \
             --title "NR3053 ${{ inputs.openwrt_tag }} #${{ github.run_number }}" \
             --notes "Chưa boot-test trên phần cứng. Kiểm tra sha256sums, chạy sysupgrade -T, nạp qua LuCI (Keep settings), không dùng -F." \
-            out/*sysupgrade.bin out/sha256sums out/*.manifest
+            out/*sysupgrade.bin out/*initramfs-kernel.bin out/sha256sums out/*.manifest
