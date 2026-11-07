@@ -54,3 +54,6 @@ OpenWrt nên Ram, và ổ cứng trống nhiều - xem ảnh dưới nhé
 | **Bảng RFS tổng** | `rps_sock_flow_entries=8192` | `4096 × 2 CPU`; hỗ trợ RFS, không tự bảo đảm cân bằng CPU |
 | **Ethernet offload** | Checksum, scatter-gather, GSO/TSO được yêu cầu bật và đã kiểm tra trên driver hiện tại | Giảm công tính checksum, sao chép và phân đoạn dữ liệu Ethernet |
 
+
+Repo có sử dụng Glass theme của rchen14b ❤️ https://github.com/rchen14b/luci-theme-glass
+Repo có tham khảo NR3053 dts của Diepkhoa ❤️ https://github.com/diepkhoa/sdmc-nr3053-repo/actionsvà sử dụng uboot của Quyttb ❤️ https://github.com/quytttb/immortalwrt-mt798x-rebase
