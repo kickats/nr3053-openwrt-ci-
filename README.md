@@ -24,7 +24,6 @@ OpenWrt nên Ram, và ổ cứng trống nhiều - xem ảnh dưới nhé
 | **BBR** | `kmod-tcp-bbr` | Cung cấp thuật toán kiểm soát nghẽn TCP BBR. Cài module **không đồng nghĩa đã chọn BBR**; chủ yếu liên quan TCP kết thúc trên router |
 | **Công cụ mạng** | `ip-full`, `iw`, `tc-tiny`, nhóm `iptables-nft` | Quản lý interface, WiFi, hàng đợi và hỗ trợ các công cụ dùng iptables trên nền nftables |
 
-**Các thay đổi gồm ba nhóm: gói phần mềm, cơ chế tăng tốc phần cứng và tuning CPU/mạng.** Không phải tất cả đều giúp tăng tốc iperf3.
 
 ### 2. Các gói đã thêm hoặc thay thế
 
