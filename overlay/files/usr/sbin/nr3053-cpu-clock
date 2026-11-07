@@ -1,0 +1,40 @@
+#!/bin/sh
+
+fail() {
+	echo "nr3053-cpu-clock: $*" >&2
+	exit 1
+}
+
+[ "$(id -u)" = 0 ] || fail "root privileges are required"
+debug=/sys/kernel/debug
+if ! awk -v path="$debug" '$2 == path && $3 == "debugfs" { found=1 } END { exit !found }' /proc/mounts; then
+	grep -qw debugfs /proc/filesystems || fail "kernel has no debugfs support"
+	mkdir -p "$debug" || fail "cannot create debugfs mountpoint"
+	mount -t debugfs -o nosuid,nodev,noexec,noatime debugfs "$debug" ||
+		fail "cannot mount debugfs"
+fi
+
+summary="$debug/clk/clk_summary"
+[ -r "$summary" ] || fail "common-clock clk_summary is unavailable"
+awk '
+	$1 == "clock" {
+		for (column=1; column<=NF; column++)
+			if ($column == "rate")
+				rate_column=column
+	}
+	$1 == "armpll" {
+		found++
+		if (!rate_column || $rate_column !~ /^[0-9]+$/ || $rate_column <= 0) {
+			invalid=1
+			next
+		}
+		hz=$rate_column
+	}
+	END {
+		if (found != 1 || invalid || !rate_column) {
+			print "nr3053-cpu-clock: missing, ambiguous or invalid armpll rate/header" > "/dev/stderr"
+			exit 1
+		}
+		printf "armpll: %.0f Hz (%.3f MHz)\n", hz, hz / 1000000
+	}
+' "$summary" || exit 1

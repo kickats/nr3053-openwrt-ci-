@@ -25,13 +25,27 @@ args = parser.parse_args()
 source = args.source.resolve()
 config = (source / ".config").read_text()
 selected = set(re.findall(r"^CONFIG_([^=\n]+)=y$", config, re.MULTILINE))
-required_packages = {"cloudflared", "luci-app-cloudflared", "pbr", "luci-app-pbr"}
+required_packages = {
+    "cloudflared", "luci-app-cloudflared", "pbr", "luci-app-pbr",
+    "htop", "iperf3", "bridger", "ethtool", "irqbalance", "dnsmasq-full",
+    "wpad-openssl", "openssl-util", "kmod-mt7915e", "mt7981-wo-firmware",
+    "kmod-sched-flower", "kmod-sched-bpf", "kmod-sched-act-vlan",
+    "kmod-nf-nathelper", "kmod-nf-nathelper-extra",
+}
+conflicting_packages = {
+    "dnsmasq", "iperf3-ssl", "wpad-basic-mbedtls", "wpad-basic-openssl",
+    "wpad-basic-wolfssl", "wpad-mbedtls", "wpad-wolfssl", "wpad",
+    "libustream-mbedtls", "libustream-wolfssl",
+}
 required_config = {
     "TARGET_mediatek", "TARGET_mediatek_filogic",
-    "TARGET_mediatek_filogic_DEVICE_sdmc_nr3053", "CCACHE",
+    "TARGET_mediatek_filogic_DEVICE_sdmc_nr3053", "CCACHE", "KERNEL_DEBUG_FS",
+    "PACKAGE_libustream-openssl",
     *(f"PACKAGE_{name}" for name in required_packages),
 }
 require(required_config <= selected, f"Missing config: {required_config - selected}")
+require(not ({f"PACKAGE_{name}" for name in conflicting_packages} & selected),
+        "Conflicting DNS/Wi-Fi/TLS/iperf variant selected")
 require(not any("tailscale" in name.lower() for name in selected), "Tailscale selected")
 require(not ({"PACKAGE_usteer", "PACKAGE_luci-app-usteer"} & selected),
         "Unrequested band-steering package selected")
@@ -39,7 +53,7 @@ require(not any(re.search(r"(?:LUCI_LANG_zh|PACKAGE_luci-i18n-.*-zh-)", name)
                 for name in selected), "Chinese translation selected")
 require(not any(name.startswith("KERNEL_DEBUG_INFO") for name in selected),
         "Kernel debug/BTF selected")
-require(not ({"KERNEL_DEBUG_KERNEL", "KERNEL_DEBUG_FS", "PACKAGE_MAC80211_DEBUGFS"} & selected),
+require(not ({"KERNEL_DEBUG_KERNEL", "PACKAGE_MAC80211_DEBUGFS"} & selected),
         "Kernel/Wi-Fi debug selected")
 if args.kmod_config:
     requested = set(re.findall(r"^CONFIG_PACKAGE_(kmod-[^=\n]+)=m$",
@@ -76,6 +90,9 @@ for kind in ("kernel", "sysupgrade"):
 image_manifest = images_dir / "openwrt-mediatek-filogic-sdmc_nr3053.manifest"
 packages = {line.split()[0] for line in image_manifest.read_text().splitlines() if line.strip()}
 require(required_packages <= packages, f"Missing image packages: {required_packages - packages}")
+require(not (conflicting_packages & packages), "Conflicting variant in image")
+require(any(re.fullmatch(r"libustream-openssl\d*", name) for name in packages),
+        "Missing OpenSSL libustream provider in image")
 require(not any("tailscale" in name.lower() for name in packages), "Tailscale in image")
 require(not any(re.search(r"^luci-i18n-.*-zh-", name) for name in packages),
         "Chinese translation in image")

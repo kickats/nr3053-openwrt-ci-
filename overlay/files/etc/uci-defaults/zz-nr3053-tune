@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+chmod +x /etc/init.d/nr3053-tune
+/etc/init.d/nr3053-tune enable
+
+uci set irqbalance.irqbalance.enabled='1'
+uci commit irqbalance
+
+uci set network.globals.packet_steering='2'
+uci set network.globals.steering_flows='4096'
+uci commit network
+
+uci set firewall.@defaults[0].flow_offloading='1'
+uci set firewall.@defaults[0].flow_offloading_hw='1'
+uci commit firewall
+
+exit 0

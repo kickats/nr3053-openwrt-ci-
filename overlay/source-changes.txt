@@ -1,6 +1,10 @@
 A	files/etc/banner
+A	files/etc/init.d/nr3053-tune
 A	files/etc/uci-defaults/zz-nr3053-localization
+A	files/etc/uci-defaults/zz-nr3053-tune
+A	files/usr/sbin/nr3053-cpu-clock
 A	nr3053.seed.config
+M	package/kernel/mt76/Makefile
 A	target/linux/mediatek/dts/mt7981b-sdmc-nr3053.dts
 M	target/linux/mediatek/filogic/base-files/etc/board.d/02_network
 M	target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh

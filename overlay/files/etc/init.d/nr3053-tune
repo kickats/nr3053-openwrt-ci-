@@ -1,0 +1,19 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+start() {
+	rfc=4096
+	threads="$(grep -c processor /proc/cpuinfo)"
+
+	# packet_steering owns per-queue RFS through network.globals.steering_flows.
+	sysctl -w net.core.rps_sock_flow_entries="$((rfc * threads))" || return 1
+
+	for i in $(ls /sys/class/net | grep -E '^eth[0-9]+$'); do
+		ethtool -K "$i" rx-checksum on
+		ethtool -K "$i" tx-checksum-ip-generic on
+		ethtool -K "$i" tx-scatter-gather on
+		ethtool -K "$i" gso on
+		ethtool -K "$i" tso on
+	done
+}
