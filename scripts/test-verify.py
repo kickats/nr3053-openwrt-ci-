@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -33,7 +35,7 @@ class VerifyConfigTests(unittest.TestCase):
     def test_required_parity_selections(self):
         for symbol in ("PACKAGE_htop", "PACKAGE_iperf3", "PACKAGE_openssl-util",
                        "PACKAGE_libustream-openssl", "PACKAGE_bridger",
-                       "PACKAGE_kmod-nf-nathelper-extra", "KERNEL_DEBUG_FS"):
+                       "PACKAGE_kmod-nf-nathelper-extra", "PACKAGE_luci-theme-glass", "KERNEL_DEBUG_FS"):
             with self.subTest(symbol=symbol):
                 original = self.seed
                 self.seed = original.replace(f"CONFIG_{symbol}=y", "")
@@ -69,6 +71,35 @@ class VerifyConfigTests(unittest.TestCase):
             capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Optional kmods missing/not standalone", result.stderr)
+
+    def test_glass_required_in_image_manifest(self):
+        (self.source / ".config").write_text(self.seed)
+        images = self.source / "bin/targets/mediatek/filogic"
+        images.mkdir(parents=True)
+        entries = []
+        for kind in ("kernel", "sysupgrade"):
+            path = images / f"test-{kind}.bin"
+            path.write_bytes(b"fixture")
+            entries.append({"type": kind, "name": path.name, "size": path.stat().st_size,
+                            "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+        (images / "profiles.json").write_text(json.dumps({
+            "target": "mediatek/filogic", "version_number": "25.12.6",
+            "linux_kernel": {"version": "6.12.112"},
+            "profiles": {"sdmc_nr3053": {
+                "supported_devices": ["viettel,nr3053", "sdmc,nr3053"],
+                "file_size_limits": {"image": 0xEA00000}, "images": entries}},
+        }))
+        names = [line.split("=", 1)[0].removeprefix("CONFIG_PACKAGE_")
+                 for line in self.seed.splitlines()
+                 if line.startswith("CONFIG_PACKAGE_") and line.endswith("=y")
+                 and line != "CONFIG_PACKAGE_luci-theme-glass=y"]
+        (images / "openwrt-mediatek-filogic-sdmc_nr3053.manifest").write_text(
+            "".join(f"{name} - fixture\n" for name in names))
+        result = subprocess.run(
+            [sys.executable, str(self.repo / "scripts/verify.py"), str(self.source),
+             "--output", str(self.source / "output")], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing image packages: {'luci-theme-glass'}", result.stderr)
 
 
 if __name__ == "__main__":

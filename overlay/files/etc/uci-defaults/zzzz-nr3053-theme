@@ -1,0 +1,29 @@
+#!/bin/sh
+
+fail() {
+	logger -t nr3053-theme "$*"
+	printf '%s\n' "nr3053-theme: $*" >&2
+	exit 1
+}
+
+for path in \
+	/usr/share/ucode/luci/template/themes/glass/header.ut \
+	/usr/share/ucode/luci/template/themes/glass/header_login.ut \
+	/usr/share/ucode/luci/template/themes/glass/footer.ut \
+	/usr/share/ucode/luci/template/themes/glass/footer_login.ut \
+	/usr/share/ucode/luci/template/themes/glass/sysauth.ut \
+	/www/luci-static/glass/css/cascade.css \
+	/www/luci-static/glass/css/dark.css \
+	/www/luci-static/glass/img/glass-logo.svg \
+	/www/luci-static/resources/menu-glass.js \
+	/www/luci-static/resources/status-glass.js \
+	/www/luci-static/resources/view/system/glass.js \
+	/www/luci-static/bootstrap/cascade.css
+do
+	[ -s "$path" ] || fail "Missing or empty theme file: $path"
+done
+
+uci set luci.themes.Glass=/luci-static/glass || fail "Cannot register Glass"
+uci set luci.main.mediaurlbase=/luci-static/glass || fail "Cannot select Glass"
+uci commit luci || fail "Cannot commit Glass default"
+exit 0

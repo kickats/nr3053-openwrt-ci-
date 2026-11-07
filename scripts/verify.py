@@ -28,7 +28,7 @@ selected = set(re.findall(r"^CONFIG_([^=\n]+)=y$", config, re.MULTILINE))
 required_packages = {
     "cloudflared", "luci-app-cloudflared", "pbr", "luci-app-pbr",
     "htop", "iperf3", "bridger", "ethtool", "irqbalance", "dnsmasq-full",
-    "wpad-openssl", "openssl-util", "kmod-mt7915e", "mt7981-wo-firmware",
+    "wpad-openssl", "openssl-util", "kmod-mt7915e", "mt7981-wo-firmware", "luci-theme-glass",
     "kmod-sched-flower", "kmod-sched-bpf", "kmod-sched-act-vlan",
     "kmod-nf-nathelper", "kmod-nf-nathelper-extra",
 }
@@ -143,6 +143,32 @@ with tempfile.TemporaryDirectory(prefix="nr3053-image-check-") as directory:
             "Non-official repository configured")
     platform = (rootfs / "lib/upgrade/platform.sh").read_text()
     require('nand_do_platform_check "sdmc,nr3053" "$1"' in platform, "Upgrade alias fix missing")
+    require("luci-theme-bootstrap" in packages, "Missing Bootstrap fallback")
+    luci_config = (rootfs / "etc/config/luci").read_text()
+    require(re.search(r"""^\s*option\s+mediaurlbase\s+['"]?/luci-static/bootstrap(?:['"]|\s|$)""",
+                      luci_config, re.MULTILINE), "Missing Bootstrap fallback configuration")
+    for relative in (
+        "www/luci-static/glass/css/cascade.css", "www/luci-static/glass/css/dark.css",
+        "www/luci-static/glass/img/glass-logo.svg",
+        "www/luci-static/resources/menu-glass.js", "www/luci-static/resources/status-glass.js",
+        "www/luci-static/resources/view/system/glass.js",
+        "www/luci-static/bootstrap/cascade.css",
+        *(f"usr/share/ucode/luci/template/themes/glass/{name}.ut"
+          for name in ("header", "header_login", "footer", "footer_login", "sysauth")),
+    ):
+        path = rootfs / relative
+        require(path.is_file() and path.stat().st_size > 0, f"Missing theme asset: {relative}")
+    hook = (rootfs / "etc/uci-defaults/30_luci-theme-glass").read_text()
+    require("luci.themes.Glass=/luci-static/glass" in hook and "mediaurlbase" not in hook,
+            "Glass must register without changing the selected theme")
+    theme_default = rootfs / "etc/uci-defaults/zzzz-nr3053-theme"
+    expected_default = Path(__file__).resolve().parents[1] / "overlay/files/etc/uci-defaults/zzzz-nr3053-theme"
+    require(theme_default.is_file(), "Missing Glass one-shot default script")
+    require(theme_default.read_bytes() == expected_default.read_bytes()
+            and theme_default.stat().st_mode & 0o777 == 0o755,
+            "Glass one-shot default script content/mode mismatch")
+    for relative in ("etc/apk/keys/glass-apk.rsa.pub", "etc/opkg/keys/ef97c468af77cea1"):
+        require(not (rootfs / relative).exists(), "Unexpected Glass package trust key")
 
 for kind in ("kernel", "sysupgrade"):
     shutil.copy2(images_dir / images[kind]["name"], output / images[kind]["name"])
@@ -154,7 +180,9 @@ shutil.copy2(source / ".config", output / ".config")
     "tag": args.tag, "target": overview["target"], "kernel": overview["linux_kernel"],
     "supported_devices": sorted(aliases), "required_packages": sorted(required_packages),
     "tailscale_present": False, "diepkhoa_matches": 0, "chinese_translation_files": 0,
-    "artifact_checks_passed": True, "native_sysupgrade_test_performed": False,
+    "artifact_checks_passed": True, "glass_assets_present": True,
+    "bootstrap_installed_as_fallback": True, "glass_selected_by_one_shot_defaults": True,
+    "native_sysupgrade_test_performed": False,
     "hardware_boot_tested": False, "flashed": False,
     "warning": "CI checks cannot replace native sysupgrade -T and hardware testing. Never force-flash."
 }, indent=2) + "\n")

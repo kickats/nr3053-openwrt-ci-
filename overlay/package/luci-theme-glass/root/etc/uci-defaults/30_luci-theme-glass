@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+# Register Glass without changing Bootstrap or the user's selected theme.
+uci set luci.themes.Glass=/luci-static/glass
+uci commit luci
+
+exit 0

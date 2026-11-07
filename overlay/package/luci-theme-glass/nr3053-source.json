@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/rchen14b/luci-theme-glass",
+  "commit": "68e26dc41c254e68f37f184ebe64a9925da7d539",
+  "version": "1.1.6",
+  "integration": [
+    "Declare luci-base runtime dependency for ucode templates and LuCI modules.",
+    "Register Glass only; preserve Bootstrap default and user theme selection.",
+    "Do not bundle upstream APK/opkg trust keys or configure external package feeds."
+  ]
+}
