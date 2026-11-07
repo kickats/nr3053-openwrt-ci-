@@ -34,7 +34,7 @@ class VerifyConfigTests(unittest.TestCase):
 
     def test_required_parity_selections(self):
         for symbol in ("PACKAGE_htop", "PACKAGE_iperf3", "PACKAGE_openssl-util",
-                       "PACKAGE_libustream-openssl", "PACKAGE_bridger",
+                       "PACKAGE_libustream-openssl", "PACKAGE_wpad-openssl", "PACKAGE_bridger",
                        "PACKAGE_kmod-nf-nathelper-extra", "PACKAGE_luci-theme-glass", "KERNEL_DEBUG_FS"):
             with self.subTest(symbol=symbol):
                 original = self.seed
@@ -43,6 +43,15 @@ class VerifyConfigTests(unittest.TestCase):
                 self.seed = original
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Missing config", result.stderr)
+
+    def test_seed_preserves_default_variant_exclusions(self):
+        for package in ("dnsmasq", "wpad-basic-mbedtls", "libustream-mbedtls"):
+            with self.subTest(package=package):
+                exclusion = f"# CONFIG_PACKAGE_{package} is not set"
+                self.assertEqual(self.seed.splitlines().count(exclusion), 1,
+                                 f"Preserve the seed exclusion verbatim: {exclusion}")
+                self.assertNotIn(f"CONFIG_PACKAGE_{package}=y", self.seed.splitlines())
+                self.assertNotIn(f"CONFIG_PACKAGE_{package}=m", self.seed.splitlines())
 
     def test_conflicting_variants(self):
         for name in ("dnsmasq", "iperf3-ssl", "wpad-basic-mbedtls",
