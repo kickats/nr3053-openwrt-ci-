@@ -7,6 +7,15 @@ import unittest
 
 
 class ApplyOverlayTests(unittest.TestCase):
+    runtime_scripts = (
+        "files/etc/init.d/nr3053-tune",
+        "files/etc/uci-defaults/zz-nr3053-localization",
+        "files/etc/uci-defaults/zz-nr3053-tune",
+        "files/etc/uci-defaults/zzzz-nr3053-theme",
+        "files/usr/sbin/nr3053-cpu-clock",
+        "package/luci-theme-glass/root/etc/uci-defaults/30_luci-theme-glass",
+    )
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -27,6 +36,18 @@ class ApplyOverlayTests(unittest.TestCase):
             path.parent.mkdir(parents=True)
             path.write_text("#!/bin/sh\nexit 0\n")
             path.chmod(0o755)
+        for relative in self.runtime_scripts:
+            path = self.repo / "overlay" / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("#!/bin/sh\nexit 0\n")
+            path.chmod(0o644)
+        self.data_files = ("files/etc/banner", "files/etc/config/example.sh",
+                           "package/luci-theme-glass/build-pkg.sh")
+        for relative in self.data_files:
+            path = self.repo / "overlay" / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n")
+            path.chmod(0o644)
         (self.repo / "nr3053.seed.config").write_text("CONFIG_CCACHE=y\n")
         (self.repo / "overlay/0001-nr3053-integration.patch").write_text(
             "diff --git a/base.txt b/base.txt\n--- a/base.txt\n+++ b/base.txt\n"
@@ -57,6 +78,34 @@ class ApplyOverlayTests(unittest.TestCase):
     def test_missing_tree_rejected(self):
         shutil.rmtree(self.repo / "overlay/package")
         self.assert_rejected_before_patch("Missing or invalid overlay tree: package")
+
+    def test_web_uploaded_runtime_scripts_get_executable_mode_only(self):
+        result = self.apply()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for relative in (*self.runtime_scripts, *self.data_files):
+            with self.subTest(path=relative):
+                original = self.repo / "overlay" / relative
+                copied = self.source / relative
+                self.assertEqual(original.stat().st_mode & 0o777, 0o644)
+                self.assertEqual(copied.read_bytes(), original.read_bytes())
+                self.assertEqual(copied.stat().st_mode & 0o777,
+                                 0o755 if relative in self.runtime_scripts else 0o644)
+
+    def test_missing_required_runtime_script_rejected(self):
+        for relative in self.runtime_scripts:
+            with self.subTest(path=relative):
+                path = self.repo / "overlay" / relative
+                contents = path.read_bytes()
+                path.unlink()
+                self.assert_rejected_before_patch("Missing or invalid required runtime script")
+                path.write_bytes(contents)
+                path.chmod(0o644)
+
+    def test_symlink_required_runtime_script_rejected(self):
+        path = self.repo / "overlay" / self.runtime_scripts[0]
+        path.unlink()
+        path.symlink_to(self.repo / "overlay/files/new/script")
+        self.assert_rejected_before_patch("Missing or invalid required runtime script")
 
     def test_file_collision_rejected(self):
         path = self.source / "package/new/script"
