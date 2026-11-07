@@ -57,6 +57,6 @@ OpenWrt nên Ram, và ổ cứng trống nhiều - xem ảnh dưới nhé
 
 Repo có sử dụng Glass theme của rchen14b ❤️ https://github.com/rchen14b/luci-theme-glass
 
-Repo có tham khảo NR3053 dts của Diepkhoa ❤️ https://github.com/diepkhoa/sdmc-nr3053-repo/actionsvà
+Repo có tham khảo NR3053 dts của Diepkhoa ❤️ https://github.com/diepkhoa/sdmc-nr3053-repo
 
 Repo có sử dụng uboot của Quyttb ❤️ https://github.com/quytttb/immortalwrt-mt798x-rebase
