@@ -6,13 +6,11 @@ Thư mục Backup có : Uboot để nạp lần đầu và các file backup phâ
 
 Repo này có 2 lựa chọn build kèm kho kmod ngoài hoặc không cần . Mọi người có thể sửa seed để thêm hay chỉnh sửa gói mà mình thích
 
-OpenWrt nên Ram trống rất nhiều ~ 360M - Ổ cứng trống ~168M 
+OpenWrt nên Ram, và ổ cứng trống nhiều - xem ảnh dưới nhé
 
 <img width="3816" height="2099" alt="image" src="https://github.com/user-attachments/assets/f8a70225-7629-40d9-94c4-1f92d30399ae" />
 
 <img width="3782" height="2045" alt="image" src="https://github.com/user-attachments/assets/f4250747-4fd2-4055-8252-a5c1685edddc" />
-
-
 
 ### 1. Tiện ích mở rộng
 
@@ -57,5 +55,3 @@ OpenWrt nên Ram trống rất nhiều ~ 360M - Ổ cứng trống ~168M
 | **Bảng RFS tổng** | `rps_sock_flow_entries=8192` | `4096 × 2 CPU`; hỗ trợ RFS, không tự bảo đảm cân bằng CPU |
 | **Ethernet offload** | Checksum, scatter-gather, GSO/TSO được yêu cầu bật và đã kiểm tra trên driver hiện tại | Giảm công tính checksum, sao chép và phân đoạn dữ liệu Ethernet |
 
-
-Đọc xung ARM PLL qua debugfs. Đã đọc được **1.300 MHz**; công cụ này **không điều chỉnh xung**. `CONFIG_KERNEL_DEBUG_FS=y` được bật để cung cấp giao diện đọc và chẩn đoán.
